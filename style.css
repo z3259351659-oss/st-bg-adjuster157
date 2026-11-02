@@ -13,4 +13,7 @@
 .bgx-range::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#e8e8ea;box-shadow:0 1px 6px rgba(0,0,0,.5)}
 .bgx-range::-moz-range-thumb{width:18px;height:18px;border:none;border-radius:50%;background:#e8e8ea}
 .bgx-status{min-height:16px;margin:-8px 0 8px;font-size:11px;letter-spacing:1px;opacity:.55}
-.bgx-reset{display:block;width:100%;padding:9px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:rgba(255,255,255,.7);font-size:12px;letter-spacing:1px;cursor:pointer}
+.bgx-btns{display:flex;gap:8px}
+.bgx-btn{flex:1;padding:9px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:rgba(255,255,255,.7);font-size:12px;letter-spacing:1px;cursor:pointer}
+.bgx-diag{display:none;margin-top:12px;padding:8px 10px;max-height:40vh;overflow-y:auto;border-radius:8px;background:rgba(255,255,255,.04);font-size:10px;line-height:1.6;white-space:pre-wrap;word-break:break-all;opacity:.8;user-select:text;-webkit-user-select:text}
+.bgx-diag.show{display:block}
