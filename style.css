@@ -1,4 +1,5 @@
-.bgx-edge{position:fixed;left:0;right:0;z-index:9990;pointer-events:none}
+/* 调节器生成的图不在背景列表里显示 */
+.bg_example[bgfile^="tt-dim-"]{display:none!important}
 #bgx-root,#bgx-root *{box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",Arial,sans-serif!important;-webkit-tap-highlight-color:transparent}
 .bgx-mask{position:fixed;inset:0;z-index:99998;background:transparent;display:none}
 .bgx-panel{position:fixed;left:50%;bottom:12vh;transform:translateX(-50%);z-index:99999;width:min(300px,90vw);padding:16px 18px;border-radius:14px;background:rgba(16,16,18,.96);border:1px solid rgba(255,255,255,.08);box-shadow:0 10px 30px rgba(0,0,0,.55);color:rgba(255,255,255,.88);display:none}
@@ -12,10 +13,8 @@
 .bgx-range{-webkit-appearance:none;appearance:none;display:block;width:100%;height:3px;border-radius:2px;outline:none;margin:0;background:linear-gradient(to right,rgba(255,255,255,.7) var(--p,0%),rgba(255,255,255,.12) var(--p,0%))}
 .bgx-range::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#e8e8ea;box-shadow:0 1px 6px rgba(0,0,0,.5)}
 .bgx-range::-moz-range-thumb{width:18px;height:18px;border:none;border-radius:50%;background:#e8e8ea}
-.bgx-seg{display:flex;gap:8px;align-items:center}
 .bgx-btns{display:flex;gap:8px}
 .bgx-btn{flex:1;padding:9px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:rgba(255,255,255,.7);font-size:12px;letter-spacing:1px;cursor:pointer}
-.bgx-btn.on{background:rgba(255,255,255,.16);color:rgba(255,255,255,.95);border-color:rgba(255,255,255,.22)}
-.bgx-color{flex:0 0 36px;width:36px;height:34px;padding:0;border:1px solid rgba(255,255,255,.15);border-radius:8px;background:none;cursor:pointer}
 .bgx-info{margin-top:12px;font-size:11px;line-height:1.6;white-space:pre-wrap;opacity:.65}
 .bgx-info:empty{display:none}
+.bgx-info.err{color:#e5b3ab;opacity:.9}
