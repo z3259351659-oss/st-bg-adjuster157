@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   const doc = document;
-  const KEY = 'bg_adjuster_v1'; // 和旧脚本用同一个，之前调好的数值会保留
+  const KEY = 'bg_adjuster_v1';
   const DEF = { bright: 100, blur: 0 };
 
   // ---------- 设置（存在本机） ----------
@@ -14,7 +14,7 @@
   const isDefault = () => S.bright === 100 && S.blur === 0;
 
   // ---------- 背景层 ----------
-  const ov = doc.createElement('style');   // 把处理好的图铺到页面最底层
+  const ov = doc.createElement('style');   // 把处理好的图换进酒馆原来的背景层
   ov.id = 'bgx-override';
   doc.head.appendChild(ov);
   const shade = doc.createElement('div');  // 拖明暗时的实时预览遮罩
@@ -45,15 +45,8 @@
     if (ov.sheet) ov.sheet.disabled = true;
     try {
       for (const el of bgEls()) {
-        const cs = getComputedStyle(el);
-        const m = /url\(\s*(['"]?)(.*?)\1\s*\)/.exec(cs.backgroundImage || '');
-        if (m && m[2]) {
-          return {
-            url: new URL(m[2], location.href).href,
-            size: (cs.backgroundSize || 'cover').split(',')[0].trim(),
-            pos: (cs.backgroundPosition || 'center').split(',')[0].trim()
-          };
-        }
+        const m = /url\(\s*(['"]?)(.*?)\1\s*\)/.exec(getComputedStyle(el).backgroundImage || '');
+        if (m && m[2]) return { id: el.id, url: new URL(m[2], location.href).href };
       }
       return null;
     } finally { if (ov.sheet) ov.sheet.disabled = false; }
@@ -130,7 +123,7 @@
     }
     const baseUrl = await toUrl(c, blur > 0 ? 0.85 : 0.92);
     const warm = new Image(); warm.src = baseUrl; warm.decode().catch(() => {});
-    cache = { src: src.url, img, blur, base: c, baseUrl, warm, size: src.size, pos: src.pos, bright: null };
+    cache = { src: src.url, id: src.id, img, blur, base: c, baseUrl, warm, bright: null };
   }
   function compose() {
     if (S.bright === 100) return Promise.resolve(cache.baseUrl);
@@ -145,10 +138,8 @@
 
   let appliedUrl = '';
   function writeCss(url) {
-    ov.textContent =
-      'html{background:#000 url("' + url + '") ' + cache.pos + ' / ' + cache.size + ' no-repeat !important}' +
-      'body{background:transparent !important}' +
-      '#bg1,#bg_custom{opacity:0 !important}';
+    // 只换图，位置和大小交给酒馆原来的背景层
+    ov.textContent = '#' + cache.id + '{background-image:url("' + url + '") !important}';
     appliedUrl = url;
   }
   async function applyUrl(url) {
@@ -172,11 +163,12 @@
     if (isDefault()) { clearOverride(); setStatus(''); return; }
     const src = readSource();
     if (!src) { clearOverride(); setShade(S.bright); setStatus('没找到背景图，只调了明暗'); return; }
-    if (cache.base && cache.src === src.url && cache.blur === S.blur && cache.bright === S.bright && appliedUrl) return;
+    if (cache.base && cache.src === src.url && cache.id === src.id && cache.blur === S.blur && cache.bright === S.bright && appliedUrl) return;
     setStatus('处理中…');
     await new Promise(r => setTimeout(r, 30)); // 先让「处理中」显示出来
     try {
       if (!cache.base || cache.src !== src.url || cache.blur !== S.blur) await buildBase(src);
+      cache.id = src.id;
       const url = await compose();
       if (my !== job) return;
       await applyUrl(url);
@@ -186,6 +178,37 @@
       clearOverride(); setShade(S.bright);
       setStatus('这张背景读不了（可能是外部链接），朦胧用不了，明暗照常');
     }
+  }
+
+  // ---------- 检测：看屏幕顶部、中间、底部分别是哪一层 ----------
+  function describe(el) {
+    let s = el.tagName.toLowerCase();
+    if (el.id) s += '#' + el.id;
+    const cls = Array.from(el.classList).slice(0, 2);
+    if (cls.length) s += '.' + cls.join('.');
+    const cs = getComputedStyle(el);
+    if (cs.backgroundImage && cs.backgroundImage !== 'none') s += '〔图〕';
+    else if (cs.backgroundColor && cs.backgroundColor !== 'rgba(0, 0, 0, 0)' && cs.backgroundColor !== 'transparent') s += '〔色〕';
+    return s;
+  }
+  function probe() {
+    const W = innerWidth, H = innerHeight;
+    const line = (name, y) => {
+      const list = doc.elementsFromPoint(W / 2, y).filter(e => !root.contains(e) && e !== shade).slice(-6);
+      return name + '：' + (list.map(describe).join(' › ') || '（无）');
+    };
+    const rect = el => { if (!el) return '无'; const b = el.getBoundingClientRect(); return Math.round(b.top) + '～' + Math.round(b.bottom); };
+    const sa = doc.createElement('div');
+    sa.style.cssText = 'position:fixed;visibility:hidden;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)';
+    doc.body.appendChild(sa);
+    const scs = getComputedStyle(sa), safe = scs.paddingTop + ' / ' + scs.paddingBottom;
+    sa.remove();
+    return [
+      '窗口 ' + W + '×' + H + '，屏幕 ' + screen.width + '×' + screen.height,
+      '安全区 上/下 ' + safe,
+      'html ' + rect(doc.documentElement) + '，bg1 ' + rect(doc.getElementById('bg1')) + '，bg_custom ' + rect(doc.getElementById('bg_custom')),
+      line('顶部', 2), line('中间', H / 2), line('底部', H - 2)
+    ].join('\n');
   }
 
   // ---------- 面板 ----------
@@ -204,10 +227,11 @@
     <input type="range" class="bgx-range bgx-blur" min="0" max="20" step="1">
   </div>
   <div class="bgx-status"></div>
-  <button class="bgx-reset">恢复默认</button>
+  <div class="bgx-btns"><button class="bgx-btn bgx-reset">恢复默认</button><button class="bgx-btn bgx-probe">检测上下</button></div>
+  <div class="bgx-diag"></div>
 </div>`;
 
-  let statusEl, inBright, inBlur, vBright, vBlur, mask, panel;
+  let statusEl, inBright, inBlur, vBright, vBlur, mask, panel, diag;
   function setStatus(t) { if (statusEl) statusEl.textContent = t; }
   function fill(el) { el.style.setProperty('--p', ((el.value - el.min) / (el.max - el.min) * 100) + '%'); }
   function renderUI(blurDragging) {
@@ -243,7 +267,7 @@
     mask = q('.bgx-mask'); panel = q('.bgx-panel');
     inBright = q('.bgx-bright'); inBlur = q('.bgx-blur');
     vBright = q('.bgx-v-bright'); vBlur = q('.bgx-v-blur');
-    statusEl = q('.bgx-status');
+    statusEl = q('.bgx-status'); diag = q('.bgx-diag');
 
     inBright.addEventListener('input', () => {
       S.bright = Number(inBright.value); renderUI(false);
@@ -254,6 +278,10 @@
     inBlur.addEventListener('input', () => { S.blur = Number(inBlur.value); renderUI(true); });
     inBlur.addEventListener('change', () => { save(); renderUI(false); commit(); });
     q('.bgx-reset').addEventListener('click', () => { S = Object.assign({}, DEF); save(); renderUI(false); setShade(100); commit(); });
+    q('.bgx-probe').addEventListener('click', () => {
+      try { diag.textContent = probe(); } catch (e) { diag.textContent = '检测出错：' + e.message; }
+      diag.classList.add('show');
+    });
     mask.addEventListener('click', closePanel);
     q('.bgx-x').addEventListener('click', closePanel);
 
