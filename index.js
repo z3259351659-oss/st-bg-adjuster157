@@ -86,32 +86,62 @@
     g.drawImage(src, 0, 0, w, h);
     return c;
   }
+  // 三次方框模糊叠加，效果接近 CSS 的 blur()
+  function boxSizes(sigma, n) {
+    const ideal = Math.sqrt(12 * sigma * sigma / n + 1);
+    let wl = Math.floor(ideal); if (wl % 2 === 0) wl--;
+    const wu = wl + 2;
+    const m = Math.round((12 * sigma * sigma - n * wl * wl - 4 * n * wl - 3 * n) / (-4 * wl - 4));
+    const out = [];
+    for (let i = 0; i < n; i++) out.push(i < m ? wl : wu);
+    return out;
+  }
+  function boxH(src, dst, w, h, r) {
+    const inv = 1 / (r + r + 1);
+    for (let y = 0; y < h; y++) {
+      const o = y * w;
+      let acc = 0;
+      for (let k = -r; k <= r; k++) acc += src[o + Math.min(w - 1, Math.max(0, k))];
+      for (let x = 0; x < w; x++) {
+        dst[o + x] = acc * inv;
+        acc += src[o + Math.min(w - 1, x + r + 1)] - src[o + Math.max(0, x - r)];
+      }
+    }
+  }
+  function boxV(src, dst, w, h, r) {
+    const inv = 1 / (r + r + 1);
+    for (let x = 0; x < w; x++) {
+      let acc = 0;
+      for (let k = -r; k <= r; k++) acc += src[Math.min(h - 1, Math.max(0, k)) * w + x];
+      for (let y = 0; y < h; y++) {
+        dst[y * w + x] = acc * inv;
+        acc += src[Math.min(h - 1, y + r + 1) * w + x] - src[Math.max(0, y - r) * w + x];
+      }
+    }
+  }
   async function render(url, want, name) {
     const img = await loadImg(url);
     const k = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
     const W = Math.max(1, Math.round(img.naturalWidth * k)), H = Math.max(1, Math.round(img.naturalHeight * k));
-    let src = resize(img, W, H);
-    if (want.blur > 0) {
-      // 先缩小再放大来模糊，强度按图片铺满屏幕时的比例换算
-      const shown = Math.max(innerWidth / W, innerHeight / H);
-      const f = 1 + 1.5 * want.blur / shown;
-      const tw = Math.max(4, Math.round(W / f)), th = Math.max(4, Math.round(H / f));
-      let w = W, h = H;
-      while (w / 2 >= tw) { w = Math.round(w / 2); h = Math.round(h / 2); src = resize(src, w, h); }
-      src = resize(src, tw, th);
-      let cw = tw;
-      while (cw * 2 < W) { cw *= 2; src = resize(src, cw, Math.round(cw * H / W)); }
-      src = resize(src, W, H);
-    }
-    const out = doc.createElement('canvas');
-    out.width = W; out.height = H;
-    const g = out.getContext('2d');
-    g.drawImage(src, 0, 0);
+    const c = resize(img, W, H);
+    const g = c.getContext('2d');
+    const id = g.getImageData(0, 0, W, H), d = id.data, N = W * H;
+    // 和 CSS blur 同样的强度：图铺满屏幕时，1 个屏幕像素 = 1/shown 个图片像素
+    const shown = Math.max(innerWidth / W, innerHeight / H);
+    const sigma = want.blur > 0 ? want.blur / shown : 0;
+    const sizes = sigma > 0.5 ? boxSizes(sigma, 3) : [];
     const b = want.bright / 100;
-    if (b < 1) { g.fillStyle = 'rgba(0,0,0,' + (1 - b) + ')'; g.fillRect(0, 0, W, H); }
-    else if (b > 1) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = b - 1; g.drawImage(src, 0, 0); }
+    const a = new Float32Array(N), t = new Float32Array(N);
+    for (let ch = 0; ch < 3; ch++) {
+      for (let i = 0; i < N; i++) a[i] = d[i * 4 + ch];
+      for (const s of sizes) { const r = (s - 1) >> 1; boxH(a, t, W, H, r); boxV(t, a, W, H, r); }
+      // 调明暗，再加一点点噪点，防止暗色渐变压出色阶
+      for (let i = 0; i < N; i++) d[i * 4 + ch] = a[i] * b + Math.random() - 0.5;
+    }
+    for (let i = 0; i < N; i++) d[i * 4 + 3] = 255;
+    g.putImageData(id, 0, 0);
     const blob = await new Promise((res, rej) =>
-      out.toBlob(x => x ? res(x) : rej(new Error('图片生成失败。')), 'image/jpeg', 0.9));
+      c.toBlob(x => x ? res(x) : rej(new Error('图片生成失败。')), 'image/jpeg', 0.95));
     return new File([blob], name, { type: 'image/jpeg' });
   }
 
